@@ -1,0 +1,280 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  --bg: #f5f5f7;
+  --bg-2: #ffffff;
+  --fg: #1d1d1f;
+  --muted: #6e6e73;
+  --card: rgb(255 255 255 / 0.72);
+  --card-solid: #ffffff;
+  --line: rgb(0 0 0 / 0.08);
+  --accent: #0071e3;
+  --accent-2: #7c3aed;
+  --accent-3: #ec4899;
+  --ok: #1f9d55;
+  --warn: #c77700;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 12px 40px -12px rgb(0 0 0 / 0.14);
+  --glow: 0.35;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #000000;
+  --bg-2: #0b0b0f;
+  --fg: #f5f5f7;
+  --muted: #a1a1a6;
+  --card: rgb(28 28 30 / 0.62);
+  --card-solid: #1c1c1e;
+  --line: rgb(255 255 255 / 0.1);
+  --accent: #2997ff;
+  --accent-2: #a78bfa;
+  --accent-3: #f472b6;
+  --ok: #30d158;
+  --warn: #ffb340;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 20px 50px -20px rgb(0 0 0 / 0.8);
+  --glow: 0.55;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-2: var(--bg-2);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-card: var(--card);
+  --color-solid: var(--card-solid);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-3: var(--accent-3);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", Roboto, "Vazirmatn", Tahoma, sans-serif;
+}
+
+html:lang(fa) {
+  --font-sans: "Vazirmatn", -apple-system, BlinkMacSystemFont, "SF Pro Text", Tahoma, sans-serif;
+}
+
+html {
+  background: var(--bg);
+  -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01";
+  transition: background-color 0.4s, color 0.4s;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--accent) 30%, transparent);
+}
+
+/* Glass material (Apple "regular" material) */
+.glass {
+  background: var(--card);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  border: 1px solid var(--line);
+}
+
+.card {
+  background: var(--card-solid);
+  border: 1px solid var(--line);
+  border-radius: 1.5rem;
+  box-shadow: var(--shadow);
+}
+
+.text-gradient {
+  background: linear-gradient(100deg, var(--accent), var(--accent-2) 45%, var(--accent-3));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  padding: 0.7rem 1.35rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.2s, box-shadow 0.2s, opacity 0.2s;
+  white-space: nowrap;
+}
+.btn:active { transform: scale(0.96); }
+.btn:disabled { opacity: 0.5; pointer-events: none; }
+.btn-primary { background: var(--accent); color: #fff; box-shadow: 0 8px 24px -8px var(--accent); }
+.btn-primary:hover { background: color-mix(in oklab, var(--accent) 88%, #fff); }
+.btn-ghost { background: color-mix(in oklab, var(--fg) 6%, transparent); color: var(--fg); }
+.btn-ghost:hover { background: color-mix(in oklab, var(--fg) 11%, transparent); }
+.btn-danger { background: color-mix(in oklab, #ff3b30 12%, transparent); color: #ff453a; }
+
+.field {
+  width: 100%;
+  background: color-mix(in oklab, var(--fg) 5%, transparent);
+  border: 1px solid transparent;
+  border-radius: 0.9rem;
+  padding: 0.75rem 1rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+.field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 22%, transparent);
+  background: var(--card-solid);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Native range → iOS-style slider */
+input[type="range"] {
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 99px;
+  background: linear-gradient(to var(--dir-end, right), var(--accent) var(--p, 50%), color-mix(in oklab, var(--fg) 12%, transparent) var(--p, 50%));
+}
+html[dir="rtl"] input[type="range"] { --dir-end: left; }
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.3), 0 0 0 0.5px rgb(0 0 0 / 0.1);
+  cursor: grab;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.3);
+}
+
+/* Aurora background */
+.aurora {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  filter: blur(80px);
+  opacity: var(--glow);
+}
+.aurora span {
+  position: absolute;
+  width: 45vmax;
+  height: 45vmax;
+  border-radius: 50%;
+  animation: drift 18s ease-in-out infinite alternate;
+}
+.aurora span:nth-child(1) { background: var(--accent); top: 5%; left: 10%; }
+.aurora span:nth-child(2) { background: var(--accent-2); top: 20%; right: 5%; animation-delay: -6s; }
+.aurora span:nth-child(3) { background: var(--accent-3); bottom: 0; left: 35%; animation-delay: -12s; width: 35vmax; height: 35vmax; }
+@keyframes drift {
+  to { transform: translate3d(8vmax, -6vmax, 0) scale(1.15) rotate(40deg); }
+}
+
+.grid-bg {
+  background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse at center, #000 20%, transparent 70%);
+}
+
+/* Entrance + scroll reveal */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(24px) scale(0.98); filter: blur(6px); }
+}
+.rise { animation: rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+@supports (animation-timeline: view()) {
+  .reveal {
+    animation: rise linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 28%;
+  }
+}
+
+@keyframes float {
+  50% { transform: translateY(-10px); }
+}
+.float { animation: float 6s ease-in-out infinite; }
+
+@keyframes shimmer {
+  to { background-position: -200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, color-mix(in oklab, var(--fg) 6%, transparent) 25%, color-mix(in oklab, var(--fg) 12%, transparent) 50%, color-mix(in oklab, var(--fg) 6%, transparent) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 1rem;
+}
+
+/* Native <dialog> as an Apple sheet */
+dialog.sheet {
+  margin: auto auto 0;
+  width: 100%;
+  max-width: 640px;
+  max-height: 92dvh;
+  border-radius: 1.75rem 1.75rem 0 0;
+  background: var(--card-solid);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  padding: 0;
+  box-shadow: 0 -20px 60px -10px rgb(0 0 0 / 0.35);
+}
+@media (min-width: 768px) {
+  dialog.sheet { margin: auto; border-radius: 1.75rem; }
+}
+dialog.sheet[open] { animation: sheet-in 0.45s cubic-bezier(0.2, 0.9, 0.2, 1); }
+dialog.sheet::backdrop {
+  background: rgb(0 0 0 / 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+@keyframes sheet-in {
+  from { transform: translateY(40px); opacity: 0; }
+}
+
+@keyframes toast-in {
+  from { transform: translate(-50%, 20px) scale(0.95); opacity: 0; }
+}
+.toast { animation: toast-in 0.4s cubic-bezier(0.2, 0.9, 0.2, 1); }
+
+@keyframes draw {
+  from { stroke-dashoffset: var(--len); }
+}
+.draw { stroke-dasharray: var(--len); animation: draw 1.6s cubic-bezier(0.4, 0, 0.2, 1) both; }
+
+/* Theme toggle: circular reveal via View Transitions */
+html.vt-theme::view-transition-old(root),
+html.vt-theme::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+
+.pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0.5rem); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

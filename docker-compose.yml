@@ -1,0 +1,28 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    volumes:
+      - data:/data
+    ports:
+      - "8011:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        BACKEND_URL: http://backend:8000
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3011:3000"
+
+volumes:
+  data:
