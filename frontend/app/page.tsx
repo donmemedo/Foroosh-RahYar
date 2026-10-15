@@ -24,7 +24,7 @@ function Hero() {
           <p className="rise glass inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium text-muted">
             <Icon name="sparkle" className="size-3.5 text-accent-2" /> {t.hero.eyebrow}
           </p>
-          <h1 className="rise mt-6 text-5xl font-extrabold leading-[1.08] tracking-tight sm:text-6xl lg:text-7xl" style={{ animationDelay: "80ms" }}>
+          <h1 className="rise mt-6 text-5xl font-extrabold leading-[1.06] tracking-tighter sm:text-6xl lg:text-7xl" style={{ animationDelay: "80ms" }}>
             {t.hero.title1}
             <br />
             <span className="text-gradient">{t.hero.title2}</span>
@@ -78,7 +78,7 @@ function Hero() {
       <div className="relative mx-auto max-w-6xl px-4 pb-8">
         <div className="grid grid-cols-2 gap-px overflow-hidden rounded-3xl border border-line bg-line md:grid-cols-4">
           {t.stats.map(([v, l]) => (
-            <div key={l} className="bg-bg-2/80 p-6 text-center backdrop-blur">
+            <div key={l} className="bg-bg-2/90 p-6 text-center">
               <div className="text-3xl font-bold tracking-tight">{v}</div>
               <div className="mt-1 text-sm text-muted">{l}</div>
             </div>

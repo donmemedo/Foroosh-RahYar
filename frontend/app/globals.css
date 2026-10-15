@@ -51,11 +51,21 @@
   --color-accent-3: var(--accent-3);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", Roboto, "Vazirmatn", Tahoma, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", Roboto, var(--font-vazirmatn), Tahoma, sans-serif;
 }
 
+/* Size-specific tracking (Apple, "Details of UI Typography"): display text tighter than headings,
+   small text slightly open. Persian is a joined script, so letter-spacing would break the joins: keep it 0. */
+@theme {
+  --tracking-tight: -0.022em;
+  --tracking-tighter: -0.034em;
+}
+html:lang(en) .text-xs { letter-spacing: 0.012em; }
+
 html:lang(fa) {
-  --font-sans: "Vazirmatn", -apple-system, BlinkMacSystemFont, "SF Pro Text", Tahoma, sans-serif;
+  --font-sans: var(--font-vazirmatn), -apple-system, BlinkMacSystemFont, "SF Pro Text", Tahoma, sans-serif;
+  --tracking-tight: 0em;
+  --tracking-tighter: 0em;
 }
 
 html {
@@ -166,12 +176,12 @@ input[type="range"]::-moz-range-thumb {
   box-shadow: 0 2px 8px rgb(0 0 0 / 0.3);
 }
 
-/* Aurora background */
+/* Aurora background. The soft falloff is baked into radial gradients instead of filter: blur(80px),
+   so the drift is transform-only and stays on the compositor (no re-raster every frame). */
 .aurora {
   position: absolute;
   inset: -20%;
   pointer-events: none;
-  filter: blur(80px);
   opacity: var(--glow);
 }
 .aurora span {
@@ -181,9 +191,9 @@ input[type="range"]::-moz-range-thumb {
   border-radius: 50%;
   animation: drift 18s ease-in-out infinite alternate;
 }
-.aurora span:nth-child(1) { background: var(--accent); top: 5%; left: 10%; }
-.aurora span:nth-child(2) { background: var(--accent-2); top: 20%; right: 5%; animation-delay: -6s; }
-.aurora span:nth-child(3) { background: var(--accent-3); bottom: 0; left: 35%; animation-delay: -12s; width: 35vmax; height: 35vmax; }
+.aurora span:nth-child(1) { background: radial-gradient(closest-side, var(--accent), transparent); top: 5%; left: 10%; }
+.aurora span:nth-child(2) { background: radial-gradient(closest-side, var(--accent-2), transparent); top: 20%; right: 5%; animation-delay: -6s; }
+.aurora span:nth-child(3) { background: radial-gradient(closest-side, var(--accent-3), transparent); bottom: 0; left: 35%; animation-delay: -12s; width: 35vmax; height: 35vmax; }
 @keyframes drift {
   to { transform: translate3d(8vmax, -6vmax, 0) scale(1.15) rotate(40deg); }
 }
@@ -223,8 +233,10 @@ input[type="range"]::-moz-range-thumb {
   border-radius: 1rem;
 }
 
-/* Native <dialog> as an Apple sheet */
+/* Native <dialog> as an Apple sheet. Motion is a JS spring in components/ui.tsx (interruptible,
+   velocity-aware), so there is no CSS entry animation here. */
 dialog.sheet {
+  will-change: transform;
   margin: auto auto 0;
   width: 100%;
   max-width: 640px;
@@ -239,14 +251,31 @@ dialog.sheet {
 @media (min-width: 768px) {
   dialog.sheet { margin: auto; border-radius: 1.75rem; }
 }
-dialog.sheet[open] { animation: sheet-in 0.45s cubic-bezier(0.2, 0.9, 0.2, 1); }
 dialog.sheet::backdrop {
   background: rgb(0 0 0 / 0.35);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
+  opacity: var(--sheet-shown, 1); /* dims with the drag; ::backdrop inherits from the dialog in current engines */
 }
-@keyframes sheet-in {
-  from { transform: translateY(40px); opacity: 0; }
+/* Grabber: centered so it never overlaps the close button; touch-action lets the finger own the gesture. */
+.sheet-grip {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  z-index: 10;
+  margin-inline: auto;
+  display: grid;
+  place-items: center;
+  width: 7rem;
+  height: 1.5rem;
+  cursor: grab;
+  touch-action: none;
+}
+.sheet-grip > span {
+  width: 2.5rem;
+  height: 0.3rem;
+  border-radius: 99px;
+  background: color-mix(in oklab, var(--fg) 28%, transparent);
 }
 
 @keyframes toast-in {
@@ -270,6 +299,16 @@ html.vt-theme::view-transition-new(root) {
 .no-scrollbar { scrollbar-width: none; }
 
 .pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0.5rem); }
+
+/* Apple accessibility signals: frostier solid surfaces, stronger edges. */
+@media (prefers-reduced-transparency: reduce) {
+  .glass { background: var(--card-solid); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  dialog.sheet::backdrop { background: rgb(0 0 0 / 0.55); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+@media (prefers-contrast: more) {
+  :root { --line: rgb(0 0 0 / 0.35); --muted: #3a3a3c; }
+  [data-theme="dark"] { --line: rgb(255 255 255 / 0.4); --muted: #d1d1d6; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

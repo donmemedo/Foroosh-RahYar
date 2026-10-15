@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n";
+import { logout, useMe } from "./Auth";
 import { Icon } from "./ui";
 
 function ThemeToggle() {
@@ -52,6 +53,8 @@ function LangToggle() {
 export function Shell({ children }: { children: React.ReactNode }) {
   const { t } = useI18n();
   const path = usePathname();
+  const me = useMe();
+  const external = path.startsWith("/s/"); // share-link recipients never see internal navigation
   const links = [
     { href: "/", label: t.nav.home, icon: "home" },
     { href: "/dashboard", label: t.nav.dashboard, icon: "chart" },
@@ -69,7 +72,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </span>
             <span className="text-[17px]">{t.brand}</span>
           </Link>
-          <div className="mx-auto hidden items-center gap-1 md:flex">
+          <div className={`mx-auto hidden items-center gap-1 ${external ? "" : "md:flex"}`}>
             {links.map((l) => (
               <Link key={l.href} href={l.href}
                 className={`rounded-full px-4 py-1.5 text-sm transition ${active(l.href) ? "bg-fg text-bg font-semibold" : "text-muted hover:text-fg"}`}>
@@ -77,24 +80,29 @@ export function Shell({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
           </div>
-          <div className="ms-auto flex items-center gap-1.5 md:ms-0">
+          <div className={`ms-auto flex items-center gap-1.5 ${external ? "" : "md:ms-0"}`}>
             <LangToggle />
             <ThemeToggle />
+            {me?.user && !external && (
+              <button onClick={logout} className="btn btn-ghost size-10 !p-0" aria-label={t.auth.logout} title={`${t.auth.logout} (${me.user})`}>
+                <Icon name="logout" className="size-[18px] rtl:-scale-x-100" />
+              </button>
+            )}
           </div>
         </nav>
       </header>
 
-      <main className="flex-1 pb-24 md:pb-0">{children}</main>
+      <main className={`flex-1 md:pb-0 ${external ? "" : "pb-24"}`}>{children}</main>
 
       {/* iOS-style tab bar on phones */}
-      <nav className="glass pb-safe fixed inset-x-0 bottom-0 z-40 grid grid-cols-3 border-x-0 border-b-0 pt-1.5 md:hidden">
+      {!external && <nav className="glass pb-safe fixed inset-x-0 bottom-0 z-40 grid grid-cols-3 border-x-0 border-b-0 pt-1.5 md:hidden">
         {links.map((l) => (
           <Link key={l.href} href={l.href} className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${active(l.href) ? "text-accent" : "text-muted"}`}>
             <Icon name={l.icon} className="size-6" strokeWidth={active(l.href) ? 2.2 : 1.7} />
             {l.label}
           </Link>
         ))}
-      </nav>
+      </nav>}
     </>
   );
 }

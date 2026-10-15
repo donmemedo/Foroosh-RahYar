@@ -4,6 +4,8 @@ node_modules/
 __pycache__/
 backend/data/
 *.log
+.env
+graphify-out/
 
 docs
 .idea

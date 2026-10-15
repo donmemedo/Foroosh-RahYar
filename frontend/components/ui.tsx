@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 const paths: Record<string, string> = {
   sun: "M12 3v2m0 14v2M5.6 5.6 7 7m10 10 1.4 1.4M3 12h2m14 0h2M5.6 18.4 7 17M17 7l1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z",
@@ -27,6 +27,8 @@ const paths: Record<string, string> = {
   shield: "M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6l-8-3Z",
   sparkle: "M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z",
   arrow: "M5 12h14m-5-5 5 5-5 5",
+  logout: "M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5m5 5H3",
+  link: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
 };
 
 export function Icon({ name, className = "size-5", strokeWidth = 1.8 }: { name: string; className?: string; strokeWidth?: number }) {
@@ -46,17 +48,118 @@ export const CAT_GRAD: Record<string, string> = {
   playbook: "from-[#5e5ce6] to-[#64d2ff]",
 };
 
-/** Native <dialog> presented as an Apple sheet. */
+/** Apple-style rubber band: the further past the edge, the less the sheet follows. */
+const rubberband = (over: number, dim: number, c = 0.55) => (over * dim * c) / (dim + c * Math.abs(over));
+
+/** Momentum projection (WWDC "Designing Fluid Interfaces"): where a flick would come to rest. */
+const project = (velocity: number, rate = 0.998) => ((velocity / 1000) * rate) / (1 - rate);
+
+/**
+ * Native <dialog> presented as an Apple sheet. It springs up from the bottom, follows the finger 1:1
+ * from the grabber or any [data-grab] area, flicks closed using projected momentum, leaves the way it
+ * came, and can be grabbed again mid-animation (springs always start from the live on-screen value).
+ */
 export function Sheet({ open, onClose, children, label }: { open: boolean; onClose: () => void; children: React.ReactNode; label: string }) {
   const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
+  const s = useRef({ y: 0, v: 0, raf: 0, dragged: false });
+  const close = useRef(onClose);
+  close.current = onClose;
+  const [shown, setShown] = useState(open); // keeps children mounted during the exit animation
+
+  const place = (d: HTMLDialogElement, y: number) => {
+    d.style.transform = `translate3d(0, ${y}px, 0)`;
+    d.style.setProperty("--sheet-shown", String(Math.max(0, Math.min(1, 1 - y / (d.offsetHeight || 1)))));
+  };
+
+  // Spring with Apple's sheet response (0.3 s). damping 1 = no overshoot; 0.8 only after a flick.
+  const springTo = (target: number, damping: number, done?: () => void) => {
+    const d = ref.current!, st = s.current;
+    cancelAnimationFrame(st.raf);
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      st.y = target; st.v = 0; place(d, target); done?.();
+      return;
+    }
+    const k = (2 * Math.PI / 0.3) ** 2, c = 2 * damping * Math.sqrt(k);
+    let last = performance.now();
+    const step = (now: number) => {
+      const dt = Math.min(0.032, (now - last) / 1000);
+      last = now;
+      st.v += (-k * (st.y - target) - c * st.v) * dt; // semi-implicit Euler, stable at this dt
+      st.y += st.v * dt;
+      if (Math.abs(st.v) < 4 && Math.abs(st.y - target) < 0.5) {
+        st.y = target; st.v = 0; place(d, target); done?.();
+        return;
+      }
+      place(d, st.y);
+      st.raf = requestAnimationFrame(step);
+    };
+    st.raf = requestAnimationFrame(step);
+  };
+
+  useLayoutEffect(() => {
     const d = ref.current!;
-    if (open && !d.open) d.showModal();
-    if (!open && d.open) d.close();
+    if (open) {
+      setShown(true);
+      if (!d.open) {
+        d.showModal();
+        s.current.y = d.offsetHeight; // enter from below, painted off-screen before the first frame
+        place(d, s.current.y);
+      }
+      springTo(0, 1);
+    } else if (d.open) {
+      springTo(d.offsetHeight, 1, () => { d.close(); setShown(false); }); // exit along the entry path
+    }
+    // springTo/place only touch refs; re-running on their identity would restart the animation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  useEffect(() => () => cancelAnimationFrame(s.current.raf), []);
+
+  const grab = (e: React.PointerEvent<HTMLDialogElement>) => {
+    const target = e.target as HTMLElement;
+    if (!open || !target.closest("[data-grab], .sheet-grip") || target.closest("button, a, input, select, textarea")) return;
+    const d = ref.current!, st = s.current;
+    cancelAnimationFrame(st.raf); // interrupt: continue from where the sheet is right now
+    d.setPointerCapture(e.pointerId);
+    const offset = e.clientY - st.y; // respect where it was grabbed
+    const history: [number, number][] = [[e.timeStamp, e.clientY]];
+    st.dragged = false;
+    const move = (ev: PointerEvent) => {
+      const y = ev.clientY - offset;
+      st.y = y < 0 ? rubberband(y, d.offsetHeight) : y;
+      st.dragged ||= Math.abs(y) > 3;
+      place(d, st.y);
+      history.push([ev.timeStamp, ev.clientY]);
+      if (history.length > 5) history.shift();
+    };
+    const up = (ev: PointerEvent) => {
+      d.removeEventListener("pointermove", move);
+      d.removeEventListener("pointerup", up);
+      d.removeEventListener("pointercancel", up);
+      const [t0, y0] = history[0];
+      st.v = ev.timeStamp > t0 ? ((ev.clientY - y0) / (ev.timeStamp - t0)) * 1000 : 0; // px/s handed to the spring
+      if (st.y + project(st.v) > d.offsetHeight / 2) springTo(d.offsetHeight, 1, () => close.current());
+      else springTo(0, Math.abs(st.v) > 300 ? 0.8 : 1);
+    };
+    d.addEventListener("pointermove", move);
+    d.addEventListener("pointerup", up);
+    d.addEventListener("pointercancel", up);
+  };
+
   return (
-    <dialog ref={ref} className="sheet" aria-label={label} onClose={onClose} onClick={(e) => e.target === ref.current && onClose()}>
-      {open && children}
+    <dialog ref={ref} className="sheet" aria-label={label} onPointerDown={grab}
+      onCancel={(e) => { e.preventDefault(); onClose(); }}
+      onClose={() => open && onClose()}
+      onSubmit={(e) => {
+        if ((e.target as HTMLFormElement).method === "dialog") { e.preventDefault(); onClose(); } // animate instead of a hard close
+      }}
+      onClick={(e) => {
+        if (s.current.dragged) { s.current.dragged = false; return; } // the click that ends a drag is not a backdrop tap
+        const r = ref.current!.getBoundingClientRect();
+        if (e.clientY < r.top || e.clientY > r.bottom || e.clientX < r.left || e.clientX > r.right) onClose();
+      }}>
+      <span className="sheet-grip" aria-hidden><span /></span>
+      {(open || shown) && children}
     </dialog>
   );
 }
