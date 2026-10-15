@@ -23,8 +23,14 @@ export type Analytics = {
 
 export type Plan = { id: "professional" | "premium" | "enterprise"; price: number; unit: "user" | "org"; popular?: boolean; features: string[] };
 
+export type Me = { user: string | null; role: "admin" | "rep" | null };
+
+export type Shared = { title_en: string; title_fa: string; category: Content["category"]; version: number; updated_at: string; has_file: boolean };
+
+/** Throws Error(<status>). A 401 also opens the login sheet (components/Auth.tsx). */
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, { cache: "no-store", ...init });
+  if (res.status === 401 && path !== "/login") window.dispatchEvent(new Event("auth"));
   if (!res.ok) throw new Error(`${res.status}`);
   return (res.status === 204 ? null : await res.json()) as T;
 }

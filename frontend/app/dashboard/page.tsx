@@ -10,7 +10,7 @@ export default function Dashboard() {
   const { t, lang } = useI18n();
   const [a, setA] = useState<Analytics | null>(null);
   const [err, setErr] = useState(false);
-  useEffect(() => { api<Analytics>("/analytics").then(setA).catch(() => setErr(true)); }, []);
+  useEffect(() => { api<Analytics>("/analytics").then(setA).catch((e) => e.message !== "401" && setErr(true)); }, []); // 401 opens login
 
   const hour = new Date().getHours();
   const hello = t.dash.hello[hour < 12 ? 0 : hour < 18 ? 1 : 2];

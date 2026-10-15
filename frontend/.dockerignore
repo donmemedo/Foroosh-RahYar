@@ -1,3 +1,7 @@
 node_modules
 .next
 npm-debug.log
+.env*
+*.log
+.web.log
+tsconfig.tsbuildinfo

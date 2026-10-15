@@ -1,4 +1,7 @@
 .venv
 data
 __pycache__
+*.log
 .api.log
+test_security.py
+requirements.in

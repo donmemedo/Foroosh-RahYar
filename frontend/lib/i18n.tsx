@@ -7,7 +7,17 @@ export type Lang = "fa" | "en";
 const dict = {
   en: {
     brand: "Tavanfroosh",
-    nav: { home: "Home", dashboard: "Dashboard", library: "Library" },
+    nav: { home: "Overview", dashboard: "Dashboard", library: "Library" },
+    auth: {
+      title: "Log in to continue",
+      user: "Username",
+      pass: "Password",
+      submit: "Log in",
+      bad: "Username or password is incorrect.",
+      tooMany: "Too many attempts. Try again in a few minutes.",
+      logout: "Log out",
+    },
+    shared: { eyebrow: "Shared with you", gone: "This link is no longer available.", updated: "Updated" },
     theme: { light: "Light", dark: "Dark" },
     hero: {
       eyebrow: "Sales enablement, built for Iran",
@@ -122,7 +132,13 @@ const dict = {
       drop: "Drop a file here or tap to choose",
       cancel: "Cancel",
       save: "Upload",
-      copied: "Link copied and share recorded",
+      copied: "Share link copied",
+      copyHere: "Copy this share link:",
+      revoke: "Turn off share links",
+      revoked: "Share links turned off",
+      fileHint: "PDF, PowerPoint, Word, Excel, MP4 or image · up to 10 MB",
+      tooBig: "This file is larger than 10 MB.",
+      badType: "This file type isn't supported.",
       approvedToast: "Approved — sales team notified",
       uploaded: "Uploaded — waiting for approval",
       deleted: "Deleted",
@@ -133,7 +149,17 @@ const dict = {
   },
   fa: {
     brand: "توان‌فروش",
-    nav: { home: "خانه", dashboard: "پیش‌خوان", library: "کتابخانه" },
+    nav: { home: "معرفی", dashboard: "پیش‌خوان", library: "کتابخانه" },
+    auth: {
+      title: "برای ادامه وارد شوید",
+      user: "نام کاربری",
+      pass: "رمز عبور",
+      submit: "ورود",
+      bad: "نام کاربری یا رمز عبور نادرست است.",
+      tooMany: "تلاش‌های زیادی انجام شد. چند دقیقه دیگر دوباره تلاش کنید.",
+      logout: "خروج",
+    },
+    shared: { eyebrow: "با شما به اشتراک گذاشته شد", gone: "این پیوند دیگر در دسترس نیست.", updated: "به‌روزرسانی" },
     theme: { light: "روشن", dark: "تیره" },
     hero: {
       eyebrow: "توانمندسازی فروش، ساخته‌شده برای ایران",
@@ -248,7 +274,13 @@ const dict = {
       drop: "فایل را اینجا رها کنید یا برای انتخاب بزنید",
       cancel: "انصراف",
       save: "بارگذاری",
-      copied: "پیوند کپی شد و اشتراک‌گذاری ثبت شد",
+      copied: "پیوند اشتراک کپی شد",
+      copyHere: "این پیوند اشتراک را کپی کنید:",
+      revoke: "غیرفعال کردن پیوندهای اشتراک",
+      revoked: "پیوندهای اشتراک غیرفعال شد",
+      fileHint: "PDF، پاورپوینت، ورد، اکسل، MP4 یا تصویر · تا ۱۰ مگابایت",
+      tooBig: "حجم این فایل بیشتر از ۱۰ مگابایت است.",
+      badType: "این نوع فایل پشتیبانی نمی‌شود.",
       approvedToast: "تایید شد؛ تیم فروش باخبر شد",
       uploaded: "بارگذاری شد؛ در انتظار تایید",
       deleted: "حذف شد",
@@ -266,7 +298,7 @@ const Ctx = createContext<{ lang: Lang; t: Dict; setLang: (l: Lang) => void }>(n
 export function I18nProvider({ initial, children }: { initial: Lang; children: React.ReactNode }) {
   const [lang, setState] = useState<Lang>(initial);
   const setLang = useCallback((l: Lang) => {
-    document.cookie = `lang=${l};path=/;max-age=31536000;samesite=lax`;
+    document.cookie = `lang=${l};path=/;max-age=31536000;samesite=lax${location.protocol === "https:" ? ";secure" : ""}`;
     const apply = () => {
       document.documentElement.lang = l;
       document.documentElement.dir = l === "fa" ? "rtl" : "ltr";
@@ -280,8 +312,17 @@ export function I18nProvider({ initial, children }: { initial: Lang; children: R
 
 export const useI18n = () => useContext(Ctx);
 
+// Building an Intl formatter is far costlier than using one; cards re-render on every search keystroke.
+const formatters = new Map<string, Intl.NumberFormat | Intl.DateTimeFormat>();
+const fmt = <F extends Intl.NumberFormat | Intl.DateTimeFormat>(kind: "n" | "d", lang: Lang, opts: object | undefined, make: (l: string) => F) => {
+  const key = kind + lang + JSON.stringify(opts ?? {});
+  let f = formatters.get(key) as F | undefined;
+  if (!f) formatters.set(key, (f = make(lang === "fa" ? "fa-IR" : "en-US")));
+  return f;
+};
+
 export const num = (n: number, lang: Lang, opts?: Intl.NumberFormatOptions) =>
-  new Intl.NumberFormat(lang === "fa" ? "fa-IR" : "en-US", opts).format(n);
+  fmt("n", lang, opts, (l) => new Intl.NumberFormat(l, opts)).format(n);
 
 export const date = (iso: string, lang: Lang, opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" }) =>
-  new Intl.DateTimeFormat(lang === "fa" ? "fa-IR" : "en-US", opts).format(new Date(iso));
+  fmt("d", lang, opts, (l) => new Intl.DateTimeFormat(l, opts)).format(new Date(iso));

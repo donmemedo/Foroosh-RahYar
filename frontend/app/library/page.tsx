@@ -1,10 +1,14 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { date, num, useI18n } from "@/lib/i18n";
-import { api, json, type Content } from "@/lib/api";
+import { api, json, type Content, type Me } from "@/lib/api";
+import { useMe } from "@/components/Auth";
 import { CAT_GRAD, Icon, Sheet, toast } from "@/components/ui";
 
 const CATS = ["deck", "catalog", "video", "case", "pricing", "playbook"] as const;
+const MAX_UPLOAD = 10 * 1024 * 1024; // keep in step with backend/main.py
+const ACCEPT = ".pdf,.pptx,.docx,.xlsx,.mp4,.png,.jpg,.jpeg,.webp"; // backend allow-list (also checked by magic bytes there)
+const failed = (e: unknown) => (e as Error).message !== "401" && (e as Error).name !== "AbortError"; // 401 opens login instead
 
 export default function Library() {
   const { t, lang } = useI18n();
@@ -15,18 +19,28 @@ export default function Library() {
   const [open, setOpen] = useState<Content | null>(null);
   const [uploading, setUploading] = useState(false);
   const search = useRef<HTMLInputElement>(null);
+  const me = useMe();
 
-  const load = useCallback(() => {
+  const load = useCallback((signal?: AbortSignal) => {
     const p = new URLSearchParams({ q, category: cat, status });
-    api<Content[]>(`/content?${p}`).then(setItems).catch(() => { setItems([]); toast(t.lib.error, "err"); });
+    api<Content[]>(`/content?${p}`, { signal }).then(setItems).catch((e) => {
+      if (!failed(e)) return; // a newer search replaced this one, or login is needed
+      setItems([]);
+      toast(t.lib.error, "err");
+    });
   }, [q, cat, status, t]);
 
-  useEffect(() => { const id = setTimeout(load, 180); return () => clearTimeout(id); }, [load]);
+  // Debounced search; an older, slower response can never overwrite a newer one.
+  useEffect(() => {
+    const ac = new AbortController();
+    const id = setTimeout(() => load(ac.signal), 180);
+    return () => { clearTimeout(id); ac.abort(); };
+  }, [load]);
 
-  // Shared links (?c=id) open the item directly
+  // Internal deep links (?c=id) open the item directly
   useEffect(() => {
     const id = new URLSearchParams(location.search).get("c");
-    if (id) api<Content>(`/content/${id}`).then(setOpen).catch(() => {});
+    if (id) api<Content>(`/content/${encodeURIComponent(id)}`).then(setOpen).catch(() => {});
   }, []);
 
   // ⌘K / Ctrl+K focuses search
@@ -72,7 +86,7 @@ export default function Library() {
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {items?.map((c, i) => (
           <button key={c.id} onClick={() => api<Content>(`/content/${c.id}`).then(setOpen).catch(() => toast(t.lib.error, "err"))}
-            className="rise card group overflow-hidden text-start transition duration-300 hover:-translate-y-1 hover:shadow-2xl"
+            className="rise card group overflow-hidden text-start transition duration-300 hover:-translate-y-1 hover:shadow-2xl active:scale-[0.98] active:duration-75"
             style={{ animationDelay: `${Math.min(i, 8) * 50}ms` }}>
             <div className={`relative flex h-36 items-center justify-center bg-gradient-to-br ${CAT_GRAD[c.category]}`}>
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,.35),transparent_60%)]" />
@@ -103,7 +117,7 @@ export default function Library() {
       )}
 
       <Sheet open={!!open} onClose={() => setOpen(null)} label={open ? title(open) : ""}>
-        {open && <Detail c={open} onChange={(c) => { setOpen(c); load(); }} onDeleted={() => { setOpen(null); load(); }} />}
+        {open && <Detail c={open} me={me} onChange={(c) => { setOpen(c); load(); }} onDeleted={() => { setOpen(null); load(); }} />}
       </Sheet>
       <Sheet open={uploading} onClose={() => setUploading(false)} label={t.lib.upload}>
         <Upload onDone={() => { setUploading(false); load(); }} onCancel={() => setUploading(false)} />
@@ -122,7 +136,7 @@ function Status({ s }: { s: Content["status"] }) {
   );
 }
 
-function Detail({ c, onChange, onDeleted }: { c: Content; onChange: (c: Content) => void; onDeleted: () => void }) {
+function Detail({ c, me, onChange, onDeleted }: { c: Content; me: Me | null; onChange: (c: Content) => void; onDeleted: () => void }) {
   const { t, lang } = useI18n();
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -134,19 +148,22 @@ function Detail({ c, onChange, onDeleted }: { c: Content; onChange: (c: Content)
   };
   const refresh = async () => onChange(await api<Content>(`/content/${c.id}`));
 
+  const admin = me?.role === "admin";
+  const approved = c.status === "approved";
+
+  // Customers get a revocable token link to this item only, never the internal library URL.
   const share = () => run(async () => {
-    const url = `${location.origin}/library?c=${c.id}`;
+    const { token } = await api<{ token: string }>(`/content/${c.id}/share`, { method: "POST" });
+    const url = `${location.origin}/s/${token}`;
     if (navigator.share) await navigator.share({ title: lang === "fa" ? c.title_fa : c.title_en, url }).catch(() => {});
-    else await navigator.clipboard?.writeText(url).catch(() => {});
-    await api(`/content/${c.id}/events/share`, { method: "POST" });
+    else if (await navigator.clipboard?.writeText(url).then(() => true, () => false)) toast(t.lib.copied);
+    else prompt(t.lib.copyHere, url); // plain-http intranets have no clipboard API
     await refresh();
-    toast(t.lib.copied);
   });
 
   return (
     <div className="max-h-[92dvh] overflow-y-auto">
-      <div className={`relative flex h-44 items-center justify-center bg-gradient-to-br ${CAT_GRAD[c.category]}`}>
-        <div className="absolute inset-x-0 top-2 mx-auto h-1.5 w-10 rounded-full bg-white/50 md:hidden" />
+      <div data-grab className={`relative flex h-44 touch-none items-center justify-center bg-gradient-to-br ${CAT_GRAD[c.category]}`}>
         <Icon name={c.category} className="size-20 text-white drop-shadow-xl" strokeWidth={1.3} />
         <form method="dialog" className="absolute end-3 top-3">
           <button className="glass grid size-9 place-items-center rounded-full !border-white/20 !bg-black/25 text-white" aria-label={t.lib.cancel}><Icon name="x" className="size-4" strokeWidth={2.5} /></button>
@@ -168,14 +185,14 @@ function Detail({ c, onChange, onDeleted }: { c: Content; onChange: (c: Content)
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button disabled={busy} onClick={share} className="btn btn-primary flex-1"><Icon name="share" className="size-4" />{t.lib.share}</button>
-          {c.status === "pending" && (
+          {approved && <button disabled={busy} onClick={share} className="btn btn-primary flex-1"><Icon name="share" className="size-4" />{t.lib.share}</button>}
+          {admin && !approved && (
             <button disabled={busy} className="btn btn-ghost flex-1 !text-ok"
               onClick={() => run(async () => { await api(`/content/${c.id}/approve`, { method: "POST" }); await refresh(); toast(t.lib.approvedToast); })}>
               <Icon name="check" className="size-4" strokeWidth={2.5} />{t.lib.approve}
             </button>
           )}
-          {c.file && <a href={`/api/content/${c.id}/file`} className="btn btn-ghost flex-1"><Icon name="download" className="size-4" />{t.lib.download}</a>}
+          {c.file && (approved || admin) && <a href={`/api/content/${c.id}/file`} className="btn btn-ghost flex-1"><Icon name="download" className="size-4" />{t.lib.download}</a>}
         </div>
 
         <form className="flex gap-2" onSubmit={(e) => {
@@ -199,10 +216,18 @@ function Detail({ c, onChange, onDeleted }: { c: Content; onChange: (c: Content)
           </ol>
         </section>
 
-        <button disabled={busy} className="btn btn-danger w-full"
-          onClick={() => confirm(t.lib.delAsk) && run(async () => { await api(`/content/${c.id}`, { method: "DELETE" }); toast(t.lib.deleted); onDeleted(); })}>
-          <Icon name="trash" className="size-4" />{t.lib.del}
-        </button>
+        {admin && approved && (
+          <button disabled={busy} className="btn btn-ghost w-full"
+            onClick={() => run(async () => { await api(`/content/${c.id}/shares`, { method: "DELETE" }); toast(t.lib.revoked); })}>
+            <Icon name="link" className="size-4" />{t.lib.revoke}
+          </button>
+        )}
+        {admin && (
+          <button disabled={busy} className="btn btn-danger w-full"
+            onClick={() => confirm(t.lib.delAsk) && run(async () => { await api(`/content/${c.id}`, { method: "DELETE" }); toast(t.lib.deleted); onDeleted(); })}>
+            <Icon name="trash" className="size-4" />{t.lib.del}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -217,22 +242,24 @@ function Upload({ onDone, onCancel }: { onDone: () => void; onCancel: () => void
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
+    if (file && file.size > MAX_UPLOAD) return toast(t.lib.tooBig, "err"); // fail fast, before 10 MB crosses the network
     if (file) f.set("file", file); else f.delete("file");
     setBusy(true);
     try {
       await api("/content", { method: "POST", body: f });
       toast(t.lib.uploaded);
       onDone();
-    } catch {
-      toast(t.lib.error, "err");
+    } catch (x) {
+      const code = (x as Error).message;
+      if (code !== "401") toast(code === "415" ? t.lib.badType : code === "413" ? t.lib.tooBig : t.lib.error, "err");
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <form onSubmit={submit} className="space-y-4 p-6 pb-safe">
-      <h2 className="text-2xl font-bold tracking-tight">{t.lib.upload}</h2>
+    <form onSubmit={submit} className="space-y-4 p-6 pt-8 pb-safe">
+      <h2 data-grab className="touch-none text-2xl font-bold tracking-tight">{t.lib.upload}</h2>
       <label
         onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
         onDragLeave={() => setDrag(false)}
@@ -240,7 +267,8 @@ function Upload({ onDone, onCancel }: { onDone: () => void; onCancel: () => void
         className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-3xl border-2 border-dashed p-8 text-center transition ${drag ? "border-accent bg-accent/5" : "border-line"}`}>
         <span className="grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-accent to-accent-2 text-white"><Icon name="upload" /></span>
         <span className="text-sm font-medium">{file ? file.name : t.lib.drop}</span>
-        <input name="file" type="file" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        <span className="text-xs text-muted">{t.lib.fileHint}</span>
+        <input name="file" type="file" accept={ACCEPT} className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
       </label>
       <input name="title_fa" required maxLength={120} placeholder={t.lib.titleFa} className="field" dir="rtl" />
       <input name="title_en" required maxLength={120} placeholder={t.lib.titleEn} className="field" dir="ltr" />
